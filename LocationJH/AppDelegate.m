@@ -7,18 +7,132 @@
 //
 
 #import "AppDelegate.h"
-
-@interface AppDelegate ()
-
+#import "SBKBeacon.h"
+#import "SBKBeaconManager.h"
+#import "SBKBeaconManager+Cloud.h"
+@interface AppDelegate ()<SBKBeaconManagerDelegate,SBKBeaconDelegate>
+@property (nonatomic,strong) NSMutableSet * beaconSet;
+@property (nonatomic,strong) SBKBeacon * currentBeacon;
 @end
 
 @implementation AppDelegate
 
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    // Override point for customization after application launch.
+    
+
+
+    _beaconSet = [NSMutableSet set];
+    
+    NSUUID *uuid = [[NSUUID alloc] initWithUUIDString:@"224B4B7D-B480-4F0C-A633-1BD3890725F2"];
+    
+    SBKBeaconID *beaconID = [SBKBeaconID beaconIDWithProximityUUID:uuid];
+    
+    [[SBKBeaconManager sharedInstance] startRangingBeaconsWithID:beaconID wakeUpApplication:YES];
+    
+    [[SBKBeaconManager sharedInstance] requestAlwaysAuthorization];
+    
+    [[SBKBeaconManager sharedInstance] setDelegate:self];
+    
+    [self configBaseInstance];
+
     return YES;
 }
+
+#pragma mark -------------> 发现新设备
+-(void)beaconManager:(SBKBeaconManager *)beaconManager didRangeNewBeacon:(SBKBeacon *)beacon{
+    
+    NSLog(@"发现新设备：%@,%@",beacon.beaconID.major,beacon.beaconID.minor);
+    
+    
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        
+        _currentBeacon = beacon;
+    });
+    
+    [beacon addObserver:self forKeyPath:@"accuracy" options:NSKeyValueObservingOptionNew context:nil];
+    
+    [_beaconSet addObject:beacon];
+    
+//    [self jargeTheNestestBeacon];
+    
+    
+    
+}
+
+
+- (void)jargeTheNestestBeacon{
+    
+    SBKBeacon *beason = _currentBeacon;
+
+    for (SBKBeacon *nowBeason in _beaconSet) {
+        
+        if (nowBeason.accuracy<beason.accuracy) {
+            
+            beason = nowBeason;
+            
+        }
+        
+    }
+    
+    if (beason.accuracy>=2.5||beason.accuracy<=0) {
+        
+        
+        
+    }else{
+        
+        _currentBeacon = beason;
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"newSBKBeacon" object:_currentBeacon];
+    
+    }
+    
+}
+
+-(void)dealloc{
+    
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    
+}
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context{
+    
+    
+    if ([keyPath isEqualToString:@"accuracy"]) {
+        
+        SBKBeacon *beacon = object;
+    
+        
+        [self jargeTheNestestBeacon];
+        
+
+    }
+    
+    
+}
+
+#pragma mark -------------> 设备离开
+-(void)beaconManager:(SBKBeaconManager *)beaconManager beaconDidGone:(SBKBeacon *)beacon{
+    
+    [beacon removeObserver:self forKeyPath:@"accuracy"];
+    [_beaconSet removeObject:beacon];
+    NSLog(@"设备离开,%@,%@",beacon.beaconID.major,beacon.beaconID.minor);
+}
+
+
+#pragma mark -------------> 每秒返回还在范围内的设备
+-(void)beaconManager:(SBKBeaconManager *)beaconManager scanDidFinishWithBeacons:(NSArray *)beacons{
+    
+    [self jargeTheNestestBeacon];
+//    NSLog(@"%@",beacons);
+}
+
+
+//信号强度更新
+-(void)sensoroBeacon:(SBKBeacon *)beacon didUpdateRSSI:(NSInteger)rssi{
+    
+    
+}
+
 
 - (void)applicationWillResignActive:(UIApplication *)application {
     // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
@@ -124,4 +238,12 @@
     }
 }
 
+
+- (void)configBaseInstance{
+//    
+//    SIKManager *manager =   [[SIKManager alloc] init];
+//    SBKUnitConvertHelper *helper = [[SBKUnitConvertHelper alloc] init];
+//    SBKCommonLigthFlashCommand *commad = nil;
+    
+}
 @end
